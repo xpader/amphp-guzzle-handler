@@ -12,16 +12,20 @@ use Psr\Http\Message\StreamInterface;
 class AmpStreamContent implements HttpContent
 {
 
-    private ReadableStream $readableStream;
-
     public function __construct(private StreamInterface $stream)
     {
-        $this->readableStream = new AmpReadableStream($stream);
     }
 
     public function getContent(): ReadableStream
     {
-        return $this->readableStream;
+        // Rewind the stream so retries (amphp RetryRequests reuses the same
+        // HttpContent instance) can replay the full body, otherwise the retry
+        // would send fewer bytes than declared in Content-Length.
+        if ($this->stream->isSeekable()) {
+            $this->stream->seek(0);
+        }
+
+        return new AmpReadableStream($this->stream);
     }
 
     public function getContentLength(): ?int
