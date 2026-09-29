@@ -24,10 +24,9 @@ class HttpClientHandler
 
     public function __invoke(RequestInterface $request, array $options): PromiseInterface
     {
-        // print_r($options);
-
         if (isset($options['delay'])) {
-            delay($options['delay'] * 1000);
+            // Guzzle delay unit: ms, amphp delay unit: second
+            delay($options['delay'] / 1000);
         }
 
         // create request
@@ -49,6 +48,15 @@ class HttpClientHandler
             $aRequest->setProtocolVersions($options['version']);
         }
 
+        // Must before setHeaders, so cookies from jar are included in request headers
+        $cookieJar = null;
+
+        if (isset($options['cookies']) && $options['cookies'] instanceof CookieJarInterface) {
+            /** @var CookieJarInterface $cookieJar */
+            $cookieJar = $options['cookies'];
+            $request = $cookieJar->withCookieHeader($request);
+        }
+
         $headers = $request->getHeaders();
         if ($headers) {
             $aRequest->setHeaders($headers);
@@ -60,18 +68,10 @@ class HttpClientHandler
 
             $authorization = match ($digest) {
                 'basic' => 'Basic '.base64_encode("$username:$password"),
-                'rearer' => 'Bearer '.$options['auth'][0]
+                'bearer' => 'Bearer '.$options['auth'][0]
             };
 
             $aRequest->setHeader('Authorization', $authorization);
-        }
-
-        $cookieJar = null;
-
-        if (isset($options['cookies']) && $options['cookies'] instanceof CookieJarInterface) {
-            /** @var CookieJarInterface $cookieJar */
-            $cookieJar = $options['cookies'];
-            $request = $cookieJar->withCookieHeader($request);
         }
 
         if (($body = $request->getBody()) !== null) {

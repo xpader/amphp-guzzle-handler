@@ -75,36 +75,21 @@ class GuzzlePayloadStream implements StreamInterface
 
     public function read(int $length): string
     {
-        if ($this->buffer !== '' && strlen($this->buffer) >= $length) {
-            $buffer = substr($this->buffer, 0, $length);
-            $this->buffer = substr($this->buffer, $length);
-            return $buffer;
+        while (!$this->isEof && strlen($this->buffer) < $length) {
+            $buffer = $this->payload->read();
+
+            if ($buffer === null) {
+                $this->isEof = true;
+                break;
+            }
+
+            $this->buffer .= $buffer;
         }
 
-        if ($this->eof()) {
-            return '';
-        }
+        $result = substr($this->buffer, 0, $length);
+        $this->buffer = substr($this->buffer, $length);
 
-        $buffer = $this->payload->read();
-
-        if ($buffer === null) {
-            $this->isEof = true;
-            return $this->buffer;
-        }
-
-        $content = $this->buffer.$buffer;
-        $len = strlen($content);
-
-        if ($len > $length) {
-            $this->buffer = substr($buffer, $length);
-            return substr($buffer, 0, $length);
-        } elseif ($len < $length) {
-            $this->buffer = '';
-            return $content.$this->read($length - $len);
-        } else {
-            $this->buffer = '';
-            return $content;
-        }
+        return $result;
     }
 
     public function getContents(): string
